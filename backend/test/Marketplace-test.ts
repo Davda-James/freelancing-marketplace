@@ -77,7 +77,7 @@ describe("Marketplace", function () {
     })
 
     it("requestJobReview", async function(){
-        await assignJobAndExpectEvent(jobId);
+        await assignJobAndExpectEvent(jobId)
         await expect(marketplace.connect(freelancer).acceptJob(jobId,{ value: freelancerStake })).to.emit(marketplace, "JobAccepted").withArgs(jobId, freelancer.getAddress());    
         const result = "live link: https://blog.vercel.com";
         await expect(marketplace.connect(freelancer).requestJobReview(jobId,result)).to.emit(marketplace, "JobReviewed").withArgs(jobId, client.getAddress() ,freelancer.getAddress(), result);

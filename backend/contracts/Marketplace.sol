@@ -1,18 +1,18 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-
-contract Marketplace is Ownable {
-
+    
+contract Marketplace is Ownable, ReentrancyGuard {
     uint256 public client_stake_per;
     uint256 public freelancer_stake_per;
     uint256 public platform_fee_per;
     uint256 public MINIMUM_BUDGET;
     uint256 public totalPlatformFees;
-
+    mapping(address => uint256[]) internal clientJobs;
+    mapping(address => uint256[]) internal freelancerJobs; 
 
     struct Job {
         address client;
@@ -34,10 +34,13 @@ contract Marketplace is Ownable {
         bool reviewed;
 
     }
-
-    mapping(uint256 => Job) private jobs;
-    uint256 private jobCounter=0;
     
+    mapping(uint256 => Job) internal jobs;
+    uint256 public jobCounter=0;
+    uint256 public jobIndex = 1;
+
+    enum JobStatus { Open, Assigned, RequestPending ,InReview, Completed, Paid , NotCompleted }
+
     constructor(uint256 _MINIMUM_BUDGET, uint256 _client_stake_per, uint256 _freelancer_stake_per, uint256 _platform_fee_per) Ownable(msg.sender) {
         client_stake_per = _client_stake_per;
         freelancer_stake_per = _freelancer_stake_per;
@@ -58,9 +61,7 @@ contract Marketplace is Ownable {
     event FundsWithdrawnByOwner(address owner, uint256 amount);
     event FreelancerReviewed(uint256 indexed jobId,string public_review, uint8 rating);
     event JobReviewed(uint256 indexed jobId, address indexed client,address indexed freelancer, string result);
-    
-    enum JobStatus { Open, Assigned, RequestPending ,InReview, Completed, Paid , NotCompleted }
-    
+        
 
     //  funds withdrawal by owner
     function withdrawPlatformFees() external onlyOwner {
@@ -80,7 +81,6 @@ contract Marketplace is Ownable {
     }
 
     // setters
-
     function setClientStakePercentage(uint256 _client_stake_per) external onlyOwner {
         client_stake_per = _client_stake_per;
     }
@@ -99,7 +99,7 @@ contract Marketplace is Ownable {
     }
 
     // getters
-    // not sure to keep this 
+
     function getTotalPlatformFees() external view returns (uint256) {
         return totalPlatformFees;
     }
@@ -119,19 +119,35 @@ contract Marketplace is Ownable {
         return MINIMUM_BUDGET;
     }
 
-    function getAllJobs() public view returns (Job[] memory) {
+    function getAllJobs() external view returns (Job[] memory) {
         // logic to return all jobs
-        Job[] memory allJobs = new Job[](jobCounter);
-        for (uint256 i = 0; i < jobCounter; i++) {
+        Job[] memory allJobs = new Job[](jobIndex);
+        for (uint256 i = 0; i < jobIndex; i++) {
             allJobs[i] = jobs[i];
         }
         return allJobs;
     }
 
-    function getJobById(uint256 jobId) public view returns (Job memory) {
+    function getJobById(uint256 jobId) external view returns (Job memory) {
         // logic to return a specific job by its ID
-        require(jobId < jobCounter, "Job does not exist");
+        require(jobId < jobIndex, "Job does not exist");
         return jobs[jobId];
+    }
+    
+    function getAllClients() external view returns (uint256[] memory) {
+        return clientJobs[msg.sender];
+    }
+    
+    function getAllFreelancers() external view returns (uint256[] memory) {
+        return freelancerJobs[msg.sender];
+    }
+    
+    function getClientJob(address client) external view returns (uint256[] memory) {
+        return clientJobs[client];
+    }
+    
+    function getFreelancerJob(address freelancer) external view returns (uint256[] memory) {
+        return freelancerJobs[freelancer];
     }
 
     modifier onlyFreelancer(uint256 jobId) {
@@ -140,12 +156,11 @@ contract Marketplace is Ownable {
     }
 
     modifier onlyClient(uint256 jobId) {
-        require(jobId < jobCounter, "Job does not exist");
         require(jobs[jobId].client == msg.sender, "Only the client can perform this action");
         _;
     }
     modifier jobExists(uint256 jobId) {
-        require(jobId < jobCounter && jobs[jobId].exists, "Job does not exist");
+        require(jobId < jobIndex && jobs[jobId].exists, "Job does not exist");
         _;
     }
     modifier validFreelancer(uint256 jobId) {
@@ -185,11 +200,14 @@ contract Marketplace is Ownable {
             rating: 0,
             exists: true
         });
-        jobs[jobCounter] = newJob;
+        jobs[jobIndex] = newJob;
+        clientJobs[msg.sender].push(jobIndex);
         totalPlatformFees += _platform_fee;
         jobCounter++;
-        emit JobCreated(jobCounter - 1, msg.sender, _description, _budget, block.timestamp, block.timestamp + (_duration * 1 days));
-        return jobCounter-1;
+        jobIndex++;
+
+        emit JobCreated(jobIndex-1, msg.sender, _description, _budget, block.timestamp, block.timestamp + (_duration * 1 days));
+        return jobIndex-1;
     }   
 
     function acceptJob(uint256 jobId) public payable jobExists(jobId) onlyFreelancer(jobId) {
@@ -206,6 +224,7 @@ contract Marketplace is Ownable {
 
         jobs[jobId].freelancer = freelancer;
         jobs[jobId].status = JobStatus.RequestPending ;
+        freelancerJobs[freelancer].push(jobId);
         emit JobAssigned(jobId, freelancer);
     }
 
