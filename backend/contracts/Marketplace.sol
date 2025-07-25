@@ -11,8 +11,12 @@ contract Marketplace is Ownable, ReentrancyGuard {
     uint256 public platform_fee_per;
     uint256 public MINIMUM_BUDGET;
     uint256 public totalPlatformFees;
+    uint256 public cancelJobPenaltyPer;
     mapping(address => uint256[]) internal clientJobs;
-    mapping(address => uint256[]) internal freelancerJobs; 
+    mapping(address => uint256[]) internal freelancerJobs;
+    mapping(uint256 => address[]) internal jobApplications;
+    mapping(uint256 => mapping(address => bool)) public hasApplied;
+
 
     struct Job {
         address client;
@@ -32,19 +36,18 @@ contract Marketplace is Ownable, ReentrancyGuard {
         uint8 rating;
         bool isPaid;
         bool reviewed;
-
     }
     
     mapping(uint256 => Job) internal jobs;
     uint256 public jobCounter=0;
-    uint256 public jobIndex = 1;
 
-    enum JobStatus { Open, Assigned, RequestPending ,InReview, Completed, Paid , NotCompleted }
+    enum JobStatus { Open, Assigned, RequestPending ,InReview, Completed, Paid , NotCompleted, Cancelled }
 
-    constructor(uint256 _MINIMUM_BUDGET, uint256 _client_stake_per, uint256 _freelancer_stake_per, uint256 _platform_fee_per) Ownable(msg.sender) {
+    constructor(uint256 _MINIMUM_BUDGET, uint256 _client_stake_per, uint256 _freelancer_stake_per, uint256 _platform_fee_per, uint256 _penalty_per) Ownable(msg.sender) {
         client_stake_per = _client_stake_per;
         freelancer_stake_per = _freelancer_stake_per;
         platform_fee_per = _platform_fee_per;
+        cancelJobPenaltyPer = _penalty_per;
         MINIMUM_BUDGET = _MINIMUM_BUDGET;
     }
 
@@ -57,11 +60,10 @@ contract Marketplace is Ownable, ReentrancyGuard {
     event AmountPaidOnCompletion(uint256 jobId, address indexed freelancer, uint256 amount);
     event JobAccepted(uint256 jobId, address indexed freelancer);
     event JobDeleted(uint256 jobId, address indexed client);
-    event JobReOpened(uint256 jobId, address indexed client, string description, uint256 budget, uint256 createdAt, uint256 deadline);
     event FundsWithdrawnByOwner(address owner, uint256 amount);
     event FreelancerReviewed(uint256 indexed jobId,string public_review, uint8 rating);
     event JobReviewed(uint256 indexed jobId, address indexed client,address indexed freelancer, string result);
-        
+    event AppliedForJob(uint256 indexed jobId, address indexed freelancer);
 
     //  funds withdrawal by owner
     function withdrawPlatformFees() external onlyOwner {
@@ -98,6 +100,11 @@ contract Marketplace is Ownable, ReentrancyGuard {
         MINIMUM_BUDGET = _minimum_budget;
     }
 
+    function setCancelJobPenaltyPercentage(uint256 _penalty_per) external onlyOwner {
+        require(0 <= _penalty_per && _penalty_per <= 100, "Penalty percentage must be between 0 and 100");
+        cancelJobPenaltyPer = _penalty_per;
+    }
+
     // getters
 
     function getTotalPlatformFees() external view returns (uint256) {
@@ -121,33 +128,36 @@ contract Marketplace is Ownable, ReentrancyGuard {
 
     function getAllJobs() external view returns (Job[] memory) {
         // logic to return all jobs
-        Job[] memory allJobs = new Job[](jobIndex);
-        for (uint256 i = 0; i < jobIndex; i++) {
+        Job[] memory allJobs = new Job[](jobCounter);
+        for (uint256 i = 0; i < jobCounter; i++) {
             allJobs[i] = jobs[i];
         }
         return allJobs;
     }
 
-    function getJobById(uint256 jobId) external view returns (Job memory) {
+    function getJobById(uint256 jobId) external view jobExists(jobId) returns (Job memory) {
         // logic to return a specific job by its ID
-        require(jobId < jobIndex, "Job does not exist");
         return jobs[jobId];
     }
     
-    function getAllClients() external view returns (uint256[] memory) {
+    function getClientsAllPostings() external view returns (uint256[] memory) {
         return clientJobs[msg.sender];
     }
-    
-    function getAllFreelancers() external view returns (uint256[] memory) {
-        return freelancerJobs[msg.sender];
-    }
-    
-    function getClientJob(address client) external view returns (uint256[] memory) {
+        
+    function getClientJobs(address client) external view returns (uint256[] memory) {
         return clientJobs[client];
     }
     
-    function getFreelancerJob(address freelancer) external view returns (uint256[] memory) {
+    function getFreelancerJobs(address freelancer) external view returns (uint256[] memory) {
         return freelancerJobs[freelancer];
+    }
+
+    function getJobApplications(uint256 jobId) external view jobExists(jobId) returns (address[] memory) {
+        return jobApplications[jobId];
+    }
+
+    function hasFreelancerApplied(uint256 jobId, address freelancer) external view jobExists(jobId) returns (bool) {
+        return hasApplied[jobId][freelancer];
     }
 
     modifier onlyFreelancer(uint256 jobId) {
@@ -160,7 +170,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
         _;
     }
     modifier jobExists(uint256 jobId) {
-        require(jobId < jobIndex && jobs[jobId].exists, "Job does not exist");
+        require(jobId < jobCounter && jobs[jobId].exists, "Job does not exist");
         _;
     }
     modifier validFreelancer(uint256 jobId) {
@@ -200,14 +210,13 @@ contract Marketplace is Ownable, ReentrancyGuard {
             rating: 0,
             exists: true
         });
-        jobs[jobIndex] = newJob;
-        clientJobs[msg.sender].push(jobIndex);
+        jobs[jobCounter] = newJob;
+        clientJobs[msg.sender].push(jobCounter);
         totalPlatformFees += _platform_fee;
         jobCounter++;
-        jobIndex++;
 
-        emit JobCreated(jobIndex-1, msg.sender, _description, _budget, block.timestamp, block.timestamp + (_duration * 1 days));
-        return jobIndex-1;
+        emit JobCreated(jobCounter-1, msg.sender, _description, _budget, block.timestamp, block.timestamp + (_duration * 1 days));
+        return jobCounter-1;
     }   
 
     function acceptJob(uint256 jobId) public payable jobExists(jobId) onlyFreelancer(jobId) {
@@ -218,6 +227,16 @@ contract Marketplace is Ownable, ReentrancyGuard {
         emit JobAccepted(jobId, msg.sender);
     }
 
+    function applyForJob(uint256 jobId) public jobExists(jobId)  {
+        require(jobs[jobId].status == JobStatus.Open, "Job is not open for applications");
+        require(msg.sender != jobs[jobId].client, "Client cannot apply for their own job");
+        require(!hasApplied[jobId][msg.sender], "Freelancer has already applied for this job");
+        hasApplied[jobId][msg.sender] = true;
+        jobApplications[jobId].push(msg.sender);
+    
+        emit AppliedForJob(jobId, msg.sender);
+    }
+    
     function assignJob(uint256 jobId, address freelancer) public jobExists(jobId) onlyClient(jobId) {
         // logic for assigning a job to a freelancer
         require(jobs[jobId].status == JobStatus.Open , "Job is not open for assignment");
@@ -300,38 +319,18 @@ contract Marketplace is Ownable, ReentrancyGuard {
         emit JobNotCompleted(jobId);
     }
 
-    function reOpenJob(uint256 jobId,uint256 _duration,string memory _description) public payable jobExists(jobId) onlyClient(jobId) {
-        // logic to reopen a job
-        require(jobs[jobId].status == JobStatus.NotCompleted , "Job is not in a state that can be reopened");
-        require(msg.value >= MINIMUM_BUDGET, "send eth greater than 100000 wei");
-
-        uint256 _budget = msg.value;
-        uint256 _client_stake = (client_stake_per * _budget) / 100;
-        uint256 _freelancer_stake = (freelancer_stake_per * _budget) / 100;
-        uint256 _platform_fee = (platform_fee_per * _budget) / 100;
-        uint256 _final_budget = _budget - _client_stake - _platform_fee;
-
-        require(_final_budget > MINIMUM_BUDGET, "Final budget < minimum budget");   
-
-        jobs[jobId].budget = _final_budget;
-        jobs[jobId].client_stake = _client_stake;
-        jobs[jobId].freelancer_stake = _freelancer_stake;
-        jobs[jobId].platform_fee = _platform_fee;
-        jobs[jobId].status = JobStatus.Open;
-        jobs[jobId].description  = _description;
-        jobs[jobId].createdAt = block.timestamp;
-        jobs[jobId].deadline = block.timestamp + (_duration * 1 days);
-        totalPlatformFees += _platform_fee;
-        emit JobReOpened(jobId, msg.sender, _description, _budget, block.timestamp, block.timestamp + (_duration * 1 days));
-    }
-
     function cancelJob(uint256 jobId) public jobExists(jobId)  onlyClient(jobId) {
         require(jobs[jobId].status == JobStatus.Open, "Job is not open for cancellation");
         
+        jobs[jobId].status = JobStatus.Cancelled;
         uint256 totalRefund = jobs[jobId].budget + jobs[jobId].client_stake;
-        // delete the job
-        delete jobs[jobId];
+        uint256 penaltyAmount = (cancelJobPenaltyPer * totalRefund) / 100;
+        totalRefund -= penaltyAmount;
+        totalPlatformFees += penaltyAmount;
         jobs[jobId].exists = false;
+
+        // clear all the freelancers that applied for the job
+        delete jobApplications[jobId];
 
         // return the budget and client stake back to the client
         (bool sent1, ) = payable(jobs[jobId].client).call{value: totalRefund}("");

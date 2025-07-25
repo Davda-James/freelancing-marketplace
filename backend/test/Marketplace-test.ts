@@ -16,14 +16,15 @@ describe("Marketplace", function () {
     const clientStakePer = 20n
     const freelancerStakePer = 20n
     const freelancerStake = (total_budget * freelancerStakePer) / (100n)
-    const platformFeePer = 10
+    const platformFeePer = 10n
+    const penaltyPer = 5n
     before(async function() {
         // get signers
         [ owner , client, freelancer] = await hre.ethers.getSigners();
     
         // deploy the contract
         const Marketplace = await ethers.getContractFactory("Marketplace",owner);
-        marketplace = await Marketplace.deploy(minimumBudget, clientStakePer, freelancerStakePer, platformFeePer);
+        marketplace = await Marketplace.deploy(minimumBudget, clientStakePer, freelancerStakePer, platformFeePer, penaltyPer);
         await marketplace.waitForDeployment();
     })
     let jobId: bigint;

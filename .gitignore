@@ -4,3 +4,5 @@ cache
 artifacts
 ignition
 typechain-types
+ipfs
+/backend/accounts.md
