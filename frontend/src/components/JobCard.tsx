@@ -107,7 +107,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job }) => {
         </div>
       </div>
 
-      {statusLabel === JobStatus.Completed && job.rating && job.rating > 0 && (
+      {statusLabel === JobStatus.Completed && job.rating !== undefined && job.rating > 0 && (
         <div className="flex items-center space-x-1 mb-4">
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" />
           <span className="text-sm text-yellow-300 font-medium">

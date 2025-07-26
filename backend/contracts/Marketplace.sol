@@ -32,6 +32,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
         uint256 deadline;
         JobStatus status; 
         bool exists;
+        string submissionHash;
         string public_review;
         uint8 rating;
         bool isPaid;
@@ -62,8 +63,8 @@ contract Marketplace is Ownable, ReentrancyGuard {
     event JobDeleted(uint256 jobId, address indexed client);
     event FundsWithdrawnByOwner(address owner, uint256 amount);
     event FreelancerReviewed(uint256 indexed jobId,string public_review, uint8 rating);
-    event JobReviewed(uint256 indexed jobId, address indexed client,address indexed freelancer, string result);
     event AppliedForJob(uint256 indexed jobId, address indexed freelancer);
+    event SubmissionSubmitted(uint256 indexed jobId, string submissionHash, address indexed freelancer);
 
     //  funds withdrawal by owner
     function withdrawPlatformFees() external onlyOwner {
@@ -106,6 +107,9 @@ contract Marketplace is Ownable, ReentrancyGuard {
     }
 
     // getters
+    function getSubmissionHash(uint256 jobId) external view returns (string memory) {
+        return jobs[jobId].submissionHash;
+    }
 
     function getTotalPlatformFees() external view returns (uint256) {
         return totalPlatformFees;
@@ -206,6 +210,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
             status: JobStatus.Open,
             isPaid: false,
             reviewed: false,
+            submissionHash:"",
             public_review: "",
             rating: 0,
             exists: true
@@ -256,17 +261,22 @@ contract Marketplace is Ownable, ReentrancyGuard {
         emit JobRevoked(jobId, msg.sender);
     }
 
-    function requestJobReview (uint256 jobId, string memory _result) public jobExists(jobId) onlyFreelancer(jobId) {
-        // logic for reviewing a job
+    function submitSubmission(uint256 jobId, string memory _submissionHash) public jobExists(jobId) onlyFreelancer(jobId) {
         require(jobs[jobId].status == JobStatus.Assigned, "Job is not assigned");
-        require(jobs[jobId].freelancer != address(0), "Freelancer not assigned yet");
+        jobs[jobId].submissionHash = _submissionHash;
         jobs[jobId].status = JobStatus.InReview;
-        emit JobReviewed(jobId, jobs[jobId].client ,jobs[jobId].freelancer, _result);
+        emit SubmissionSubmitted(jobId, _submissionHash, msg.sender);
+    }
+
+    function editSubmission(uint256 jobId, string memory _submissionHash) public jobExists(jobId) onlyFreelancer(jobId) {
+        require(jobs[jobId].status == JobStatus.InReview, "Job is not in review");
+        jobs[jobId].submissionHash = _submissionHash;
+        emit SubmissionSubmitted(jobId, _submissionHash, msg.sender);
     }
 
     function completeJob(uint256 jobId,string memory _reply_on_completion) public jobExists(jobId) onlyClient(jobId) {
         // complete the job
-        require(jobs[jobId].status == JobStatus.Assigned, "Job is not assigned");
+        require(jobs[jobId].status == JobStatus.InReview, "Job is not in review");
         jobs[jobId].on_completion=_reply_on_completion;
         jobs[jobId].status = JobStatus.Completed;
         emit JobCompleted(jobId, msg.sender);

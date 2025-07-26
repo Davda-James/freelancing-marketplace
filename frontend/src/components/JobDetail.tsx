@@ -4,12 +4,17 @@ import { ArrowLeft, Clock, DollarSign, User, Shield, Star, AlertTriangle, CheckC
 import {  JobStatus } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { getStatusLabel } from '@/lib/utils';
-import { getApplicationsForJob, ApplyForJob, assignJob, acceptJob, revokeJob, cancelJob } from '@/services/MarketplaceServices';
+import { getApplicationsForJob, ApplyForJob, assignJob, acceptJob, revokeJob, cancelJob, submitSubmission, editSubmission, completeJob, approvePayment, reviewFreelancer } from '@/services/MarketplaceServices';
 import { formatEther } from 'ethers';
 import ShowApplicants from '@/components/modals/ShowApplicants';
 import AcceptSuccessModal from '@/components/modals/AcceptSuccessModal';
 import RevokeModal from '@/components/modals/RevokeModal';
 import CancelJobModal from '@/components/modals/CancelJobModal';
+import { SubmitProofOfWorkModal } from '@/components/modals/SubmitProofOfWorkModal';
+import SubmissionDisplay from '@/components/SubmissionDisplay';
+import { IPFSStatusIndicator } from '@/components/IPFSStatusIndicator';
+import { ReviewFreelancerModal } from '@/components/modals/ReviewFreelancerModal';
+import { CompleteJobModal } from '@/components/modals/CompleteJobModal';
 
 export const JobDetail: React.FC = () => {
 const { user, jobs, contract, refreshJobs } = useApp();
@@ -29,15 +34,16 @@ const [showRevokeModal, setShowRevokeModal] = useState(false);
 const [isRevoking, setIsRevoking] = useState(false);
 const [showCancelJobModal, setShowCancelJobModal] = useState(false);
 const [isCancelling, setIsCancelling] = useState(false);
+const [showSubmitProofModal, setShowSubmitProofModal] = useState(false);
+const [isSubmittingProof, setIsSubmittingProof] = useState(false);
+const [isEditingSubmission, setIsEditingSubmission] = useState(false);
+const [isCompletingJob, setIsCompletingJob] = useState(false);
+const [showCompleteJobModal, setShowCompleteJobModal] = useState(false);
+const [isApprovingPayment, setIsApprovingPayment] = useState(false);
+const [showReviewModal, setShowReviewModal] = useState(false);
+const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
 const job = jobs.find(j => j.id === parseInt(id || '0'));
-
-// Add debug logging to see if job status is updating
-useEffect(() => {
-  if (job) {
-    console.log('Job status updated:', getStatusLabel(job.status), 'for job ID:', job.id);
-  }
-}, [job?.status]);
 
 useEffect(() => {
   if(!job || !contract) return;
@@ -114,6 +120,10 @@ const canAcceptOffer = isFreelancer && getStatusLabel(job.status) === JobStatus.
 const canApply = isFreelancer && getStatusLabel(job.status) === JobStatus.Open && job.freelancer !== user?.address && !isAlreadyApplied;
 const canRevoke = isClient && getStatusLabel(job.status) === JobStatus.Assigned && job.freelancer;
 const canCancelJob = isClient && getStatusLabel(job.status) === JobStatus.Open;
+const canSubmitProof = isAssignedFreelancer && getStatusLabel(job.status) === JobStatus.Assigned;
+const hasSubmission = job.submissionHash && job.submissionHash !== '';
+const canEditSubmission = isAssignedFreelancer && hasSubmission && (getStatusLabel(job.status) === JobStatus.InReview || getStatusLabel(job.status) === JobStatus.Assigned);
+const canViewSubmission = hasSubmission && (isMyJob || isAssignedFreelancer); // Both client and freelancer can view
 
 const handleApply = async () => {   
   if (!canApply) return;
@@ -138,12 +148,9 @@ const handleAssignFreelancer = async (freelancerAddress: string) => {
   if (!contract) return;
   try {
     setAssigningFreelancer(freelancerAddress);
-    console.log('Before assignment - Job status:', getStatusLabel(job.status));
     await assignJob(contract, job.id, freelancerAddress);
-    console.log('Assignment completed, refreshing jobs...');
     // Refresh jobs to update status - this should change job.status and hide the assignment buttons
     await refreshJobs();
-    console.log('Jobs refreshed - Job status should now be:', getStatusLabel(job.status));
     setAssignedFreelancer(freelancerAddress);
   } catch (error) {
     console.error('Error assigning freelancer:', error);
@@ -197,6 +204,100 @@ const handleCancelJob = async () => {
     setIsCancelling(false);
   }
 };
+
+const handleSubmitProof = async (ipfsHash: string, _fileName: string) => {
+  if (!contract) return;
+  try {
+    setIsSubmittingProof(true);
+    await submitSubmission(contract, job.id, ipfsHash);
+    await refreshJobs();
+    setShowSubmitProofModal(false);
+  } catch (error) {
+    console.error('Error submitting proof:', error);
+    throw error;
+  } finally {
+    setIsSubmittingProof(false);
+  }
+};
+
+const handleEditSubmission = async (ipfsHash: string, _fileName: string) => {
+  if (!contract) return;
+  try {
+    setIsSubmittingProof(true);
+    await editSubmission(contract, job.id, ipfsHash);
+    await refreshJobs();
+    setShowSubmitProofModal(false);
+    setIsEditingSubmission(false);
+  } catch (error) {
+    console.error('Error editing submission:', error);
+    throw error;
+  } finally {
+    setIsSubmittingProof(false);
+  }
+};
+
+const handleCompleteJob = async () => {
+  setShowCompleteJobModal(true);
+};
+
+const handleCompleteJobWithMessage = async (completionMessage: string) => {
+  if (!contract) return;
+  try {
+    setIsCompletingJob(true);
+    await completeJob(contract, job.id, completionMessage);
+    await refreshJobs();
+  } catch (error) {
+    console.error('Error completing job:', error);
+    throw error;
+  } finally {
+    setIsCompletingJob(false);
+  }
+};
+
+const handleApprovePayment = async () => {
+  if (!contract) return;
+  try {
+    setIsApprovingPayment(true);
+    await approvePayment(contract, job.id);
+    await refreshJobs();
+  } catch (error) {
+    console.error('Error approving payment:', error);
+  } finally {
+    setIsApprovingPayment(false);
+  }
+};
+
+const handleReviewFreelancer = async (rating: number, review: string) => {
+  if (!contract) return;
+  try {
+    setIsSubmittingReview(true);
+    await reviewFreelancer(contract, job.id, rating, review);
+    await refreshJobs();
+    setShowReviewModal(false);
+  } catch (error) {
+    console.error('Error submitting review:', error);
+    throw error;
+  } finally {
+    setIsSubmittingReview(false);
+  }
+};
+// console.log('🔍 JobDetail Debug Info:', {
+//   jobId: job.id,
+//   jobMsg: job.onCompletion,
+//   jobStatus: getStatusLabel(job.status),
+//   submissionHash: job.submissionHash,
+//   hasSubmission,
+//   canSubmitProof,
+//   canEditSubmission,
+//   canViewSubmission,
+//   isMyJob,
+//   isAssignedFreelancer,
+//   userAddress: user?.address,
+//   freelancerAddress: job.freelancer,
+//   clientAddress: job.client,
+//   reviewed: job.reviewed,
+//   rating: job.rating
+// });
 
 return (
   <div className="min-h-screen bg-gray-950">
@@ -287,6 +388,34 @@ return (
             </div>
           </div>
 
+          {/* Client's Completion Message - Show to Freelancer */}
+          {isAssignedFreelancer && job.onCompletion && (getStatusLabel(job.status) === JobStatus.Completed || getStatusLabel(job.status) === JobStatus.Paid) && (
+            <div className="bg-gradient-to-br from-emerald-900/30 via-green-900/20 to-blue-900/30 backdrop-blur-sm rounded-xl border border-emerald-500/30 p-6 shadow-lg">
+              <div className="flex items-start space-x-4">
+                <div className="bg-gradient-to-r from-emerald-500 to-green-500 p-3 rounded-full shadow-lg">
+                  <CheckCircle className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-emerald-300 mb-2 flex items-center space-x-2">
+                    <span>🎉 Work Approved by Client!</span>
+                  </h2>
+                  <div className="bg-emerald-950/30 border border-emerald-600/20 rounded-lg p-4 mb-3">
+                    <h3 className="text-sm font-medium text-emerald-400 mb-2">Client's Feedback:</h3>
+                    <p className="text-emerald-100 leading-relaxed italic">
+                      "{job.onCompletion}"
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <span className="text-emerald-300">Status:</span>
+                    <span className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/30 rounded-full text-emerald-200 font-medium">
+                      {getStatusLabel(job.status) === JobStatus.Paid ? "Payment Released 💰" : "Awaiting Payment Release"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Timeline & Progress */}
           {getStatusLabel(job.status) !== JobStatus.Open && (
             <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800/50 p-6">
@@ -298,24 +427,31 @@ return (
                   <span className="text-sm text-gray-400">{formatDate(job.createdAt)}</span>
                 </div>
                 
-                {getStatusLabel(job.status) === JobStatus.Assigned && (
+                {(getStatusLabel(job.status) === JobStatus.Assigned || getStatusLabel(job.status) === JobStatus.InReview || getStatusLabel(job.status) === JobStatus.Completed || getStatusLabel(job.status) === JobStatus.Paid) && (
                   <div className="flex items-center space-x-3">
                     <CheckCircle className="w-5 h-5 text-green-600" />
                     <span className="text-gray-300">Freelancer assigned</span>
                   </div>
                 )}
                 
+                {(getStatusLabel(job.status) === JobStatus.InReview || getStatusLabel(job.status) === JobStatus.Completed || getStatusLabel(job.status) === JobStatus.Paid) && (
+                  <div className="flex items-center space-x-3">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="text-gray-300">Work submitted for review</span>
+                  </div>
+                )}
+                
                 {(getStatusLabel(job.status) === JobStatus.Completed || getStatusLabel(job.status) === JobStatus.Paid) && (
                   <div className="flex items-center space-x-3">
                     <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-gray-300">Work completed</span>
+                    <span className="text-gray-300">Marked completed by client</span>
                   </div>
                 )}
                 
                 {getStatusLabel(job.status) === JobStatus.Paid && (
                   <div className="flex items-center space-x-3">
                     <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-gray-300">Payment completed</span>
+                    <span className="text-gray-300">Payment released</span>
                   </div>
                 )}
               </div>
@@ -389,7 +525,30 @@ return (
                   {isAcceptingOffer ? 'Accepting...' : 'Accept Offer'}
                 </button>
               )}
+
+              {/* Submit Proof of Work Button - Only for assigned freelancer when job is in progress */}
+              {canSubmitProof && !hasSubmission && (
+                <button
+                  onClick={() => setShowSubmitProofModal(true)}
+                  disabled={isSubmittingProof}
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-lg
+                    ${
+                      !isSubmittingProof
+                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 hover:shadow-purple-500/25'
+                        : 'bg-gray-800 text-gray-400 cursor-not-allowed'
+                    }`}
+                >
+                  {isSubmittingProof ? 'Submitting...' : 'Submit Proof of Work'}
+                </button>
+              )}
             </div>
+            )}
+            
+            {/* IPFS Status Indicator - Show only when submission features are available */}
+            {(canSubmitProof || hasSubmission) && (
+              <div className="mt-4 pt-4 border-t border-gray-700/50">
+                <IPFSStatusIndicator />
+              </div>
             )}
 
             {isMyJob && getStatusLabel(job.status) === JobStatus.Open && (
@@ -425,16 +584,101 @@ return (
               </div>
             )}
 
-            {isMyJob && getStatusLabel(job.status) === JobStatus.InReview && (
-              <button className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-700 transition-colors">
-                Review Submission
-              </button>
+            {/* Complete Job button - Show for InReview and Completed status */}
+            {isMyJob && (getStatusLabel(job.status) === JobStatus.InReview || getStatusLabel(job.status) === JobStatus.Completed) && hasSubmission && (
+              <div className="mt-3 w-full">
+                {getStatusLabel(job.status) === JobStatus.InReview ? (
+                  <button 
+                    onClick={handleCompleteJob}
+                    disabled={isCompletingJob}
+                    className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-lg ${
+                      !isCompletingJob
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white hover:shadow-purple-500/25'
+                        : 'bg-gray-800 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {isCompletingJob ? 'Reviewing...' : 'Review & Complete Job'}
+                  </button>
+                ) : (
+                  <div className="bg-gradient-to-r from-emerald-600/20 to-green-600/20 border border-emerald-500/30 rounded-lg p-3 text-center backdrop-blur-sm">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-emerald-300 font-medium">Work Review Completed</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {isMyJob && getStatusLabel(job.status) === JobStatus.Completed && (
-              <button className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors">
-                Release Payment
-              </button>
+              <div className="mt-3">
+                <button 
+                  onClick={handleApprovePayment}
+                  disabled={isApprovingPayment}
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-lg ${
+                    !isApprovingPayment
+                      ? 'bg-green-600 hover:bg-green-700 text-white hover:shadow-green-500/25'
+                      : 'bg-gray-800 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {isApprovingPayment ? 'Processing Payment...' : 'Approve & Release Payment'}
+                </button>
+              </div>
+            )}
+
+            {/* Show completion message when job is paid */}
+            {isMyJob && getStatusLabel(job.status) === JobStatus.Paid && (
+              <div className="mt-4 space-y-4">
+                <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-4 text-center">
+                  <div className="flex items-center justify-center space-x-2 text-green-400 mb-2">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-semibold">Job Completed Successfully!</span>
+                  </div>
+                  <p className="text-sm text-green-300">
+                    Payment has been released to the freelancer.
+                  </p>
+                </div>
+
+                {/* Review Button - Show if job is paid, disable if already reviewed */}
+                {job.freelancer && (
+                  <div className="w-full">
+                    {!job.reviewed ? (
+                      <button 
+                        onClick={() => setShowReviewModal(true)}
+                        disabled={isSubmittingReview}
+                        className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-lg ${
+                          !isSubmittingReview
+                            ? 'bg-gradient-to-r from-yellow-600 to-orange-600 text-white hover:from-yellow-700 hover:to-orange-700 hover:shadow-yellow-500/25'
+                            : 'bg-gray-800 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {isSubmittingReview ? 'Submitting Review...' : '⭐ Review Freelancer'}
+                      </button>
+                    ) : (
+                      <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg p-4 text-center backdrop-blur-sm">
+                        <div className="flex items-center justify-center space-x-3 mb-2">
+                          <div className="flex items-center space-x-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${
+                                  i < (job.rating || 0) ? 'text-yellow-400 fill-current' : 'text-gray-400'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-blue-300 font-semibold">Review Completed</span>
+                        </div>
+                        <p className="text-sm text-blue-200">
+                          Thank you for rating this freelancer!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -508,6 +752,25 @@ return (
           )}
         </div>
       </div>
+
+      {/* Submission Display - Show if there's a submission and user can view it */}
+      {canViewSubmission && (
+        <div className="mt-8">
+          <SubmissionDisplay
+            jobId={job.id}
+            submissionHash={job.submissionHash}
+            fileName={`job-${job.id}-proof-of-work.pdf`}
+            submissionDate={Date.now() / 1000} // You might want to add actual submission date to your job type
+            freelancerAddress={job.freelancer || undefined}
+            isOwner={!!canEditSubmission}
+            onEdit={() => {
+              setIsEditingSubmission(true);
+              setShowSubmitProofModal(true);
+            }}
+            className="max-w-4xl mx-auto px-4"
+          />
+        </div>
+      )}
     </div>
 
     {/* Stake Confirmation Modal */}
@@ -684,6 +947,40 @@ return (
       jobTitle={job.title}
       clientAddress={job.client}
       isCancelling={isCancelling}
+    />
+
+    {/* Submit Proof of Work Modal */}
+    <SubmitProofOfWorkModal
+      isOpen={showSubmitProofModal}
+      onClose={() => {
+        setShowSubmitProofModal(false);
+        setIsEditingSubmission(false);
+      }}
+      onSubmit={isEditingSubmission ? handleEditSubmission : handleSubmitProof}
+      jobTitle={job.title}
+      isEditing={isEditingSubmission}
+      existingHash={isEditingSubmission ? job.submissionHash : undefined}
+      existingFileName={isEditingSubmission ? `job-${job.id}-proof-of-work.pdf` : undefined}
+    />
+
+    {/* Review Freelancer Modal */}
+    <ReviewFreelancerModal
+      isOpen={showReviewModal}
+      onClose={() => setShowReviewModal(false)}
+      onSubmit={handleReviewFreelancer}
+      freelancerAddress={job.freelancer || ''}
+      jobTitle={job.title}
+      isSubmitting={isSubmittingReview}
+    />
+
+    {/* Complete Job Modal */}
+    <CompleteJobModal
+      isOpen={showCompleteJobModal}
+      onClose={() => setShowCompleteJobModal(false)}
+      onSubmit={handleCompleteJobWithMessage}
+      freelancerAddress={job.freelancer || ''}
+      jobTitle={job.title}
+      isSubmitting={isCompletingJob}
     />
 
   </div>

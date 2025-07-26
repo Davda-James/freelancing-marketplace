@@ -10,7 +10,7 @@ export const getAllJobs = async (contract: Contract): Promise<Job[]> => {
     freelancer: job.freelancer,
     title: job.title,
     description: job.description,
-    on_completion: job.on_completion,
+    onCompletion: job.on_completion,
     budget: job.budget,
     clientStake: job.client_stake,
     freelancerStake: job.freelancer_stake,
@@ -19,12 +19,14 @@ export const getAllJobs = async (contract: Contract): Promise<Job[]> => {
     deadline: job.deadline.toNumber ? job.deadline.toNumber() : job.deadline,
     status: Number(job.status),
     exists: job.exists,
+    submissionHash: job.submissionHash,
     publicReview: job.public_review,
     rating: Number(job.rating),
     isPaid: job.isPaid,
     reviewed: job.reviewed
   }));
 };
+
 export const createJob = async (contract: Contract, 
   title: string,
   duration: number,
@@ -86,6 +88,7 @@ export const getJobById = async (contract: Contract, jobId: number): Promise<Job
       deadline: rawJob.deadline.toNumber ? rawJob.deadline.toNumber() : rawJob.deadline,
       status: Number(rawJob.status),
       exists: rawJob.exists,
+      submissionHash: rawJob.submissionHash,
       publicReview: rawJob.public_review,
       rating: Number(rawJob.rating),
       isPaid: rawJob.isPaid,
@@ -191,3 +194,61 @@ export const cancelJob = async (contract: Contract, jobId: number): Promise<bool
 };
 
 
+export const submitSubmission = async (contract: Contract, jobId: number, submissionHash: string): Promise<boolean> => {
+  try {
+    const tx= await  contract.submitSubmission(jobId, submissionHash);
+    await tx.wait();
+    return true;
+  } catch (error) {
+    throw error;
+  } 
+};  
+
+export  const editSubmission = async (contract: Contract, jobId: number, submissionHash:  string): Promise<boolean> => {
+  try {
+    const tx= await contract.editSubmission(jobId, submissionHash);
+    await tx.wait();
+    return true;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getSubmissionHash = async (contract: Contract, jobId: number): Promise<string> => {
+  try{
+    const submissionHash = await contract.getSubmissionHash(jobId);
+    return submissionHash;
+  } catch (error){
+    throw error;
+  }
+};
+
+export const completeJob = async (contract:Contract , jobId:number, completionMessage: string ): Promise<boolean> => {
+  try {
+    const tx = await contract.completeJob(jobId, completionMessage);
+    await tx.wait();
+    return true;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const approvePayment = async (contract: Contract, jobId: number): Promise<boolean> => {
+  try {
+    const tx= await contract.payOnCompletion(jobId);
+    await tx.wait();
+    return true;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const reviewFreelancer = async (contract: Contract, jobId: number, rating: number, publicReview: string): Promise<boolean> => {
+  try {
+    const tx = await contract.reviewFreelancer(jobId, publicReview, rating);
+    await tx.wait();
+    return true;
+  } catch (error) {
+    throw error;
+  }
+};

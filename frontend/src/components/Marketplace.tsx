@@ -123,7 +123,7 @@ export const Marketplace: React.FC = () => {
           ))}
         </div>
 
-        {filteredJobs.length === 0 && (
+        {!loadingJobs && filteredJobs.length === 0 && (
           <div className="text-center py-12">
             <Search className="w-16 h-16 text-gray-500 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-white mb-2">No jobs found</h3>

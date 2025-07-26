@@ -13,6 +13,7 @@
     deadline: number;
     status: number;
     exists: boolean;
+    submissionHash: string;
     publicReview?: string;
     rating?: number;
     isPaid: boolean;

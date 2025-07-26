@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, ChevronDown, Copy, ExternalLink, LogOut } from 'lucide-react';
 import { useWallet } from '@/hooks/useWallet';
 import { BrowserProvider } from  'ethers';
@@ -9,6 +9,24 @@ const network = await provider.getNetwork();
 export const WalletButton: React.FC = () => {
   const { wallet, connectWallet, disconnectWallet } = useWallet();
   const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -23,13 +41,6 @@ export const WalletButton: React.FC = () => {
 
   const getNetworkName = () => {
     return network.name || 'Unknown';    
-    // switch (chainId) {
-    //   case 1: return 'Ethereum';
-    //   case 5: return 'Goerli';
-    //   case 11155111: return 'Sepolia';
-    //   case 137: return 'Polygon';
-    //   default: return 'Unknown';
-    // }
   };
 
   if (!wallet.isConnected) {
@@ -46,7 +57,7 @@ export const WalletButton: React.FC = () => {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
         className="flex items-center space-x-2 bg-gray-800/50 border border-gray-700 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-700/50 transition-all duration-300"
@@ -108,13 +119,6 @@ export const WalletButton: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {showDropdown && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setShowDropdown(false)}
-        />
       )}
     </div>
   );
