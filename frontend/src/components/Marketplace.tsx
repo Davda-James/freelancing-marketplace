@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { JobCard } from '@/components/JobCard';
 import { useApp } from '@/context/AppContext';
@@ -7,11 +7,16 @@ import { formatEther } from 'ethers';
 
 
 export const Marketplace: React.FC = () => {
-  const { jobs, loadingJobs } = useApp();
+  const { jobs, loadingJobs, refreshJobs } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [budgetRange, setBudgetRange] = useState('all');
+
+  // Refresh jobs when marketplace component mounts
+  useEffect(() => {
+    refreshJobs();
+  }, []);
 
   const categories = [
     { id: 'all', label: 'All Categories' },

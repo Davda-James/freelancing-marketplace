@@ -148,12 +148,26 @@ const handleAssignFreelancer = async (freelancerAddress: string) => {
   if (!contract) return;
   try {
     setAssigningFreelancer(freelancerAddress);
+    
+    // Perform the assignment transaction
     await assignJob(contract, job.id, freelancerAddress);
-    // Refresh jobs to update status - this should change job.status and hide the assignment buttons
+    
+    // Add a small delay to ensure blockchain state is updated
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Refresh jobs multiple times to ensure we get the updated state
     await refreshJobs();
+    
+    // Wait a bit more and refresh again to be absolutely sure
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await refreshJobs();
+    
+    // Set success state
     setAssignedFreelancer(freelancerAddress);
+    
+    console.log('✅ Freelancer assigned successfully and UI refreshed');
   } catch (error) {
-    console.error('Error assigning freelancer:', error);
+    console.error('❌ Error assigning freelancer:', error);
   } finally {
     setAssigningFreelancer(null);
   }
@@ -297,6 +311,18 @@ const handleReviewFreelancer = async (rating: number, review: string) => {
 //   clientAddress: job.client,
 //   reviewed: job.reviewed,
 //   rating: job.rating
+// });
+
+// Debug: Log button visibility conditions
+// console.log('🎯 Button Visibility Debug:', {
+//   jobId: job.id,
+//   jobStatus: getStatusLabel(job.status),
+//   statusNumber: job.status,
+//   isMyJob,
+//   showAssignButton: isMyJob && getStatusLabel(job.status) === JobStatus.Open,
+//   canRevoke,
+//   freelancerAddress: job.freelancer,
+//   assigningAnyFreelancer: assigningFreelancer !== null
 // });
 
 return (
@@ -551,13 +577,18 @@ return (
               </div>
             )}
 
-            {isMyJob && getStatusLabel(job.status) === JobStatus.Open && (
+            {isMyJob && getStatusLabel(job.status) === JobStatus.Open && !assigningFreelancer && (
               <div className="mt-6 space-y-3">
                 <button 
                   onClick={() => setShowAssignModal(true)}
-                  className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                  disabled={!!assigningFreelancer}
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                    assigningFreelancer 
+                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
                 >
-                  Assign Freelancer
+                  {assigningFreelancer ? 'Assignment in Progress...' : 'Assign Freelancer'}
                 </button>
                 <button className="w-full border border-gray-600 text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors">
                   Edit Job
@@ -850,7 +881,10 @@ return (
                 </button>
                 {isMyJob && getStatusLabel(job.status) === JobStatus.Open && (
                   <button
-                    onClick={() => handleAssignFreelancer(freelancer)}
+                    onClick={async () => {
+                      await handleAssignFreelancer(freelancer);
+                      // No need to set additional state here as the main handler manages everything
+                    }}
                     disabled={assigningFreelancer === freelancer}
                     className={`px-4 py-2 text-sm rounded-md font-medium transition-all duration-200 ${
                       assigningFreelancer === freelancer
@@ -887,7 +921,17 @@ return (
           <p className="text-gray-300 mb-2">
             Job #{job.id} assigned to <span className="text-blue-400">{assignedFreelancer.slice(0, 6)}...{assignedFreelancer.slice(-4)}</span>
           </p>
-          <button onClick={() => setAssignedFreelancer(null)} className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+          <p className="text-sm text-gray-400 mb-4">
+            The page will update to show the new job status.
+          </p>
+          <button 
+            onClick={async () => {
+              setAssignedFreelancer(null);
+              // One final refresh when modal is closed
+              await refreshJobs();
+            }} 
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
             OK
           </button>
         </div>
@@ -899,9 +943,14 @@ return (
         applicants={applicants}
         jobId={job.id}
         onClose={() => setShowAssignModal(false)}
-        onSuccess={(freelancer: string) => {
-          setAssignedFreelancer(freelancer);
+        onSuccess={async (freelancer: string) => {
           setShowAssignModal(false);
+          // The assignment is already done in the modal, just refresh and show success
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await refreshJobs();
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await refreshJobs();
+          setAssignedFreelancer(freelancer);
         }}
       />
     )}

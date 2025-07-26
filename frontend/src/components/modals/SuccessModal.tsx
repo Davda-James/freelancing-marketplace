@@ -39,7 +39,13 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({ title, jobId, onClos
         <p className="text-gray-300 mb-6">
           Your job <strong>{title}</strong> is now live on the marketplace.
         </p>
-        <div className="flex justify-center space-x-4">
+        <div className="flex justify-center space-x-3">
+          <button
+            onClick={() => navigate('/marketplace')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition font-medium"
+          >
+            View in Marketplace
+          </button>
           <button
             onClick={() => navigate('/dashboard')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"

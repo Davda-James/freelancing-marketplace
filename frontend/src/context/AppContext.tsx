@@ -37,6 +37,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true); // optional loading state
+  const [isRefreshing, setIsRefreshing] = useState(false); // Add flag to prevent concurrent refreshes
   const wallet = useWallet();
 
   const contract = useMarketplaceContract();
@@ -78,13 +79,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setLoadingJobs(false);
       return;
     }
+
+    // Prevent concurrent refreshes
+    if (isRefreshing) {
+      return;
+    }
+
     try {
+      setIsRefreshing(true);
+      setLoadingJobs(true);
+      
       const jobList = await getAllJobs(contract);
       setJobs(jobList);
+      
     } catch (error) {
-      console.error('Failed to fetch jobs:', error);
     } finally {
       setLoadingJobs(false);
+      setIsRefreshing(false);
     }
   };
 

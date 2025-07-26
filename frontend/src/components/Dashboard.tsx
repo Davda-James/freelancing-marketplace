@@ -15,7 +15,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
-    const { user } = useApp();
+    const { user, refreshJobs } = useApp();
     const navigate = useNavigate();
     const [myJobs, setMyJobs] = useState<Job[]>([]);
     const [JobsPosted, setJobsPosted] = useState<Job[]>([]);
@@ -27,11 +27,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         const fetchJobs = async () => {
             if (!user?.address || !contract) return;
             try {
+                // Refresh global jobs list when dashboard loads
+                await refreshJobs();
+                
+                // Fetch user-specific jobs
                 const jobsPosted = await getJobsOfClient(contract, user?.address);
                 const freelancerJobs = await getJobsOfFreelancer(contract, user?.address);
-                console.log(user.address,jobsPosted, freelancerJobs);
-                console.log(jobsPosted);
-                console.log(freelancerJobs);
                 setJobsPosted(jobsPosted);
                 setMyJobs(freelancerJobs);
             } catch (error) {
@@ -39,7 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             }
         };
         fetchJobs();
-    }, [user?.address, contract]);
+    }, [user?.address, contract, refreshJobs]);
 
     const stats = {
         totalJobs: myJobs.length,

@@ -11,7 +11,7 @@ import { createJob } from '@/services/MarketplaceServices';
 
 
 export const CreateJob: React.FC = () => {
-  const { user, wallet, loadingUser } = useApp();
+  const { user, wallet, loadingUser, refreshJobs } = useApp();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -97,6 +97,11 @@ export const CreateJob: React.FC = () => {
           formData.budget
         );
         setCreatedJobId(jobId ? jobId.toString() : null);
+        
+        console.log('✅ Job created successfully! Refreshing jobs list...');
+        // Refresh the jobs list so it appears in marketplace immediately
+        await refreshJobs();
+        
         setShowSuccessModal(true);
       }
     } catch (error) {

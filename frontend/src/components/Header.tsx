@@ -1,9 +1,10 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { SignInButton, SignUpButton, UserButton, useUser } from '@clerk/clerk-react';
 import { Briefcase, Plus } from 'lucide-react';
 // import { useApp } from '../context/AppContext';
 import { WalletButton } from '@/components/WalletButton';
+import { useApp } from '@/context/AppContext';
 
 // Check if Clerk is enabled
 const isClerkEnabled = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_');
@@ -14,12 +15,39 @@ export const Header: React.FC = () => {
   // const { user: appUser } = useApp();
     //   user import 
   const { isSignedIn } = isClerkEnabled ? useUser() : { isSignedIn: false };
+  const { refreshJobs } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => {
     if (path === '/' && location.pathname === '/') return true;
     if (path !== '/' && location.pathname.startsWith(path)) return true;
     return false;
+  };
+
+  const handleBrowseJobsClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();    
+
+    try {
+      await refreshJobs();
+    } catch (error) {
+      console.error('Failed to refresh jobs:', error);
+    }
+    
+    navigate('/marketplace');
+  };
+
+  const handleDashboardClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+
+    // Refresh jobs first, then navigate
+    try {
+      await refreshJobs();
+    } catch (error) {
+      console.error('Failed to refresh jobs:', error);
+    }
+    
+    navigate('/dashboard');
   };
 
   return (
@@ -39,6 +67,7 @@ export const Header: React.FC = () => {
           <nav className="hidden md:flex items-center space-x-8">
             <Link
               to="/marketplace"
+              onClick={handleBrowseJobsClick}
               className={`text-gray-300 hover:text-blue-400 transition-colors font-medium ${
                 isActive('/marketplace') ? 'text-blue-400 border-b-2 border-blue-400 pb-1' : ''
               }`}
@@ -56,6 +85,7 @@ export const Header: React.FC = () => {
             {isSignedIn && (
               <Link
                 to="/dashboard"
+                onClick={handleDashboardClick}
                 className={`text-gray-300 hover:text-blue-400 transition-colors font-medium ${
                   isActive('/dashboard') ? 'text-blue-400 border-b-2 border-blue-400 pb-1' : ''
                 }`}
