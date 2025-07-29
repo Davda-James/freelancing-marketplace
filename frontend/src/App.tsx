@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { RequireAuth } from '@/components/RequireAuth';
 import { AppSkeleton } from '@/components/loaders/AppSkeleton';
 import { MarketplaceSkeleton } from '@/components/loaders/MarketplaceSkeleton';
+import { PortfolioSearch } from '@/components/PortfolioSearch';
 
 // import { Hero } from '@/components/Hero';
 // import { Dashboard } from '@/components/Dashboard';
@@ -30,6 +31,9 @@ const HowItWorks = lazy(() =>
 );
 const JobDetail = lazy(() => 
   import('@/components/JobDetail').then(module => ({ default: module.JobDetail }))
+);
+const FreelancerPortfolio = lazy(() =>
+  import('@/components/FreelancerPortfolio').then(module => ({ default: module.FreelancerPortfolio }))
 );
 
 function App() {
@@ -61,6 +65,12 @@ function App() {
               <Route path="/create-job" element={<CreateJob />} />
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/job/:id" element={<JobDetail />} />
+              <Route path="/portfolio-search" element={<PortfolioSearch />} />
+              <Route path="/portfolio/:address" element={
+                <Suspense fallback={<MarketplaceSkeleton />}>
+                  <FreelancerPortfolio />
+                </Suspense>
+              } />
             </Routes>
         </div>
       </Router>

@@ -590,9 +590,6 @@ return (
                 >
                   {assigningFreelancer ? 'Assignment in Progress...' : 'Assign Freelancer'}
                 </button>
-                <button className="w-full border border-gray-600 text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors">
-                  Edit Job
-                </button>
                 {canCancelJob && (
                   <button 
                     onClick={() => setShowCancelJobModal(true)}

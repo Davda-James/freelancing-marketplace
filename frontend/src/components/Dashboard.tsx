@@ -51,6 +51,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             const fee = parseFloat(formatEther(job.platformFee));
             return acc + budget + fee;
         },0),
+        jobsPosted: JobsPosted.length,
         successRate: myJobs.length > 0 ? (myJobs.filter(job => getStatusLabel(job.status) === JobStatus.Completed).length / myJobs.length) * 100 : 0,
         avgRating: myJobs.length > 0 ? (myJobs.reduce((acc, job) => acc + (job.rating || 0), 0) / myJobs.length).toFixed(1) : 'N/A'
     };
@@ -65,15 +66,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </div>
 
             {/* Stats Grid */}
+            {/* Jobs as Freelancer */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 hover:border-blue-500/50 transition-all duration-300">
                 <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-sm font-medium text-gray-400">Total Jobs</p>
+                    <p className="text-sm font-medium text-gray-400">Jobs as Freelancer</p>
                     <p className="text-2xl font-bold text-white">{stats.totalJobs}</p>
                 </div>
                 <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-3 rounded-lg">
                     <Briefcase className="w-6 h-6 text-white" />
+                </div>
+                </div>
+            </div>
+
+            {/* Jobs Posted by user */}
+            <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700 hover:border-green-500/50 transition-all duration-300">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm font-medium text-gray-400">Jobs Posted</p>
+                    <p className="text-2xl font-bold text-white">{stats.jobsPosted}</p>
+                </div>
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-lg">
+                    <Users className="w-6 h-6 text-white" />
                 </div>
                 </div>
             </div>

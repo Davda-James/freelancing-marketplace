@@ -93,6 +93,14 @@ export const Header: React.FC = () => {
                 Dashboard
               </Link>
             )}
+            <Link
+              to="/portfolio-search"
+              className={`text-gray-300 hover:text-blue-400 transition-colors font-medium ${
+                isActive('/portfolio-search') ? 'text-blue-400 border-b-2 border-blue-400 pb-1' : ''
+              }`}
+            >
+              Find Freelancers
+            </Link>
           </nav>
 
           <div className="flex items-center space-x-4">
