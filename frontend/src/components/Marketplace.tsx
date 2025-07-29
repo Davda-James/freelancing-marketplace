@@ -19,7 +19,7 @@ export const Marketplace: React.FC = () => {
   }, []);
 
   const categories = [
-    { id: 'all', label: 'All Categories' },
+    { id: 'all', label: 'All Cate;gories' },
     { id: 'development', label: 'Development' },
     { id: 'design', label: 'Design' },
     { id: 'writing', label: 'Writing' },
