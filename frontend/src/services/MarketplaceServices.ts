@@ -4,6 +4,7 @@ import type { Job } from '@/types';
 
 export const getAllJobs = async (contract: Contract): Promise<Job[]> => {
   const rawJobs = await contract.getAllJobs();
+  console.log(rawJobs.length);
   return rawJobs.map((job: any, index : number) => ({
     id: index,
     client: job.client,
@@ -24,7 +25,7 @@ export const getAllJobs = async (contract: Contract): Promise<Job[]> => {
     rating: Number(job.rating),
     isPaid: job.isPaid,
     reviewed: job.reviewed
-  }));
+  }))
 };
 
 export const createJob = async (contract: Contract, 

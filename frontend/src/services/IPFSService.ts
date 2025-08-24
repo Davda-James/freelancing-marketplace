@@ -66,8 +66,8 @@ export class IPFSService {
     console.log('🌐 Getting gateway URL for hash:', hash);
     
     // Try local IPFS gateway first (port 8080), fallback to public gateway
-    const localGateway = `${process.env.VITE_LOCAL_IPFS_GATEWAY}/${hash}`;
-    const publicGateway = `${process.env.VITE_PUBLIC_IPFS_GATEWAY}/${hash}`;
+    const localGateway = `${import.meta.env.VITE_LOCAL_IPFS_GATEWAY}/${hash}`;
+    const publicGateway = `${import.meta.env.VITE_PUBLIC_IPFS_GATEWAY}/${hash}`;
 
     return localGateway || publicGateway;
   }
